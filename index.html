@@ -8,6 +8,7 @@
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
 <title>Entregas de Clase</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Karla:wght@400;500;700&display=swap">
 <style>
 /* Layout: una columna. Calendario arriba; el día se abre encima a pantalla
@@ -290,6 +291,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .vacio b{display:block;font-family:var(--display);font-size:18px;color:var(--tinta-2);margin-bottom:5px}
 .leyenda{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;font-size:11.5px;color:var(--tinta-3)}
 .leyenda span{display:flex;align-items:center;gap:5px}
+.portada{position:fixed;inset:0;z-index:80;background:var(--papel);
+  display:flex;align-items:center;justify-content:center;
+  padding-left:max(22px,env(safe-area-inset-left,0px));
+  padding-right:max(22px,env(safe-area-inset-right,0px))}
+.port-caja{max-width:360px;text-align:center}
+.port-caja h1{font-family:var(--display);font-size:29px;margin:0 0 10px;
+  font-weight:700;line-height:1.15;text-wrap:balance}
+.port-caja p{color:var(--tinta-2);margin:0 0 22px;line-height:1.6}
+.port-caja .btn{width:100%;height:54px}
+.port-pie{font-size:12px;color:var(--tinta-3);margin:20px 0 0;line-height:1.6}
 .toast{position:fixed;z-index:70;left:50%;transform:translateX(-50%);
   bottom:calc(84px + env(safe-area-inset-bottom,0px));
   background:var(--tinta);color:var(--papel);padding:11px 16px;border-radius:12px;
@@ -363,7 +374,12 @@ const E=(nombre,niv,fecha,hora,notas,alarma,hecha)=>({
   estado: hecha?'fin':'pend', aplazada:0, fechaPrev:null,
   creada:new Date(Date.now()-((id*53)%12)*864e5).toISOString()});
 
-let entregas=[
+let entregas=[];
+/* Entregas de muestra, sólo para enseñar la aplicación. No se cargan
+   solas: hay que pedirlas desde la pantalla de asignaturas. */
+function ejemplos(){
+  id=0;
+  return [
   E('Lengua',1,desp(0),'23:59','Comentario de texto de "La casa de Bernarda Alba". Subirlo al aula virtual.','A la hora'),
   E('Física',2,desp(0),'08:30','Práctica del péndulo: tabla de medidas y cálculo del error absoluto y relativo.','La tarde anterior'),
   E('Matemáticas',1,desp(2),'08:00','Boletín de ejercicios 3.2, derivadas y límites. Entregar a mano en clase.','1 día antes'),
@@ -372,20 +388,28 @@ let entregas=[
   E('Biología',3,desp(4),'12:00','Esquema del tema 5: mitosis y meiosis.','Sin alarma'),
   E('Química',2,desp(6),'08:30','Formulario de orgánica completo. Pedir el del año pasado a Marta.','3 días antes'),
   E('Lengua',3,desp(7),'23:59','Ficha de lectura del acto III.','1 día antes'),
-  E('Matemáticas',1,desp(9),'08:00','Entrega del trabajo de estadística con las gráficas hechas en el ordenador.','1 semana antes'),
   E('General',4,desp(10),'17:00','Devolver los libros de la biblioteca del instituto.','1 día antes'),
-  E('Historia',2,desp(11),'10:15','Exposición en clase. Llevar el guion impreso por si falla el proyector.','3 días antes'),
   E('Física',3,desp(-2),'08:30','Problemas del tema 2, del 14 al 20.','Sin alarma',true),
-  E('Inglés',4,desp(-1),'09:00','Redacción corta sobre las vacaciones.','Sin alarma',true),
-  E('General',4,desp(14),'09:00','Traer la autorización firmada para la excursión.','3 días antes')
-];
+  E('Inglés',4,desp(-1),'09:00','Redacción corta sobre las vacaciones.','Sin alarma',true)
+  ];
+}
 
-/* guardado en el dispositivo */
-const LLAVE='entregas.mock.v1';
+/* ====== datos ======
+   La verdad vive en un archivo de Drive. El navegador guarda una copia
+   para poder abrir rápido y seguir funcionando sin conexión. */
+const CLIENT_ID='797709712717-egm5dldvhrkjolcquc1tm2ji6q0k9s5h.apps.googleusercontent.com';
+const AMBITO='https://www.googleapis.com/auth/drive.file';
+const ARCHIVO='entregas.json';
+const LLAVE='entregas.cache.v1';
+
+/* Al arrancar no hay nada hasta que entre: los ejemplos sólo se cargan
+   si él los pide, para que su archivo de Drive nazca limpio. */
+entregas=[];
+
 try{ const g=localStorage.getItem(LLAVE);
   if(g){ const d=JSON.parse(g);
     if(Array.isArray(d.asig)&&d.asig.length) ASIG=d.asig;
-    if(Array.isArray(d.entregas)&&d.entregas.length){
+    if(Array.isArray(d.entregas)){
       entregas=d.entregas; id=d.id||entregas.length;
       /* datos de versiones anteriores guardaban el NOMBRE: se traducen */
       entregas.forEach(e=>{
@@ -399,8 +423,189 @@ try{ const g=localStorage.getItem(LLAVE);
       });
     } }
 }catch(e){}
-function alDisco(){ try{ localStorage.setItem(LLAVE, JSON.stringify({entregas,id,asig:ASIG})); }catch(e){} }
-function reinicia(){ try{ localStorage.removeItem(LLAVE); }catch(e){} location.reload(); }
+function alDisco(){
+  try{ localStorage.setItem(LLAVE, JSON.stringify({entregas,id,asig:ASIG,fileId:N.fileId})); }catch(e){}
+}
+function reinicia(){
+  if(!confirm('Esto borra lo que tengas y carga las entregas de ejemplo. ¿Seguro?')) return;
+  entregas=ejemplos(); alDisco(); subeYa(); location.reload();
+}
+
+/* ==================================================================
+   DRIVE
+   La verdad está en un archivo del Drive de quien entra. El navegador
+   guarda una copia para abrir rápido y seguir sin conexión.
+   Antes de escribir se comprueba la versión del archivo, para que un
+   dispositivo no pise lo que acaba de guardar el otro.
+   ================================================================== */
+const N = { token:null, caduca:0, fileId:null, version:null, cliente:null,
+            correo:null, dentro:false, pendiente:false, subiendo:false };
+try{ const g=JSON.parse(localStorage.getItem(LLAVE)||'{}'); if(g.fileId) N.fileId=g.fileId; }catch(e){}
+
+const API='https://www.googleapis.com/drive/v3/files';
+const SUBE='https://www.googleapis.com/upload/drive/v3/files';
+
+function nEstado(txt, clase){
+  const e=$('#nube-txt'); if(!e) return;
+  e.textContent=txt;
+  const p=document.querySelector('.punto');
+  if(p) p.style.background = clase==='mal' ? 'var(--n1)'
+                           : clase==='espera' ? 'var(--n2)' : 'var(--ok)';
+}
+
+/* --- sesión --- */
+function nCliente(){
+  if(N.cliente) return N.cliente;
+  if(!window.google || !google.accounts || !google.accounts.oauth2) return null;
+  N.cliente = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID, scope: AMBITO,
+    callback: r=>{
+      if(r && r.access_token){
+        N.token=r.access_token;
+        N.caduca=Date.now()+((r.expires_in||3600)*1000);
+        N.dentro=true;
+        arranca();
+      } else nEstado('No se pudo entrar','mal');
+    },
+    error_callback: ()=>{ nEstado('Entrada cancelada','mal'); muestraEntrada(); }
+  });
+  return N.cliente;
+}
+const tokenVale = ()=> N.token && Date.now() < N.caduca-60000;
+
+function entra(silencioso, intentos){
+  intentos=intentos||0;
+  const c=nCliente();
+  if(!c){
+    if(intentos>10){ nEstado('Sin conexión con Google','mal'); muestraEntrada(true); return; }
+    setTimeout(()=>entra(silencioso, intentos+1), 400); return;
+  }
+  c.requestAccessToken({prompt: silencioso ? '' : 'consent'});
+}
+function sal(){
+  if(N.token && google.accounts.oauth2) google.accounts.oauth2.revoke(N.token, ()=>{});
+  N.token=null; N.dentro=false; N.fileId=null; N.version=null;
+  try{ localStorage.removeItem(LLAVE); }catch(e){}
+  location.reload();
+}
+
+/* --- peticiones --- */
+async function pide(url, opciones){
+  opciones=opciones||{};
+  opciones.headers=Object.assign({Authorization:'Bearer '+N.token}, opciones.headers||{});
+  const r=await fetch(url, opciones);
+  if(r.status===401){ N.token=null; throw new Error('sesion'); }
+  if(!r.ok) throw new Error('http '+r.status);
+  return r;
+}
+
+/* --- localizar o crear el archivo --- */
+async function localiza(){
+  if(N.fileId){
+    try{ const r=await pide(API+'/'+N.fileId+'?fields=id,version,trashed');
+         const d=await r.json();
+         if(!d.trashed){ N.version=d.version; return; } }
+    catch(e){ if(e.message==='sesion') throw e; N.fileId=null; }
+  }
+  const q=encodeURIComponent("name='"+ARCHIVO+"' and trashed=false");
+  const r=await pide(API+'?q='+q+'&spaces=drive&fields=files(id,version)');
+  const d=await r.json();
+  if(d.files && d.files.length){ N.fileId=d.files[0].id; N.version=d.files[0].version; return; }
+  await crea();
+}
+async function crea(){
+  const cuerpo=JSON.stringify(paquete());
+  const lim='-------'+Date.now();
+  const meta=JSON.stringify({name:ARCHIVO, mimeType:'application/json',
+    description:'Entregas de Clase — datos de la aplicación'});
+  const body='--'+lim+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta+
+    '\r\n--'+lim+'\r\nContent-Type: application/json\r\n\r\n'+cuerpo+'\r\n--'+lim+'--';
+  const r=await pide(SUBE+'?uploadType=multipart&fields=id,version',
+    {method:'POST', headers:{'Content-Type':'multipart/related; boundary='+lim}, body});
+  const d=await r.json(); N.fileId=d.id; N.version=d.version;
+}
+
+const paquete = ()=>({formato:1, asig:ASIG, entregas, id});
+
+/* --- bajar --- */
+async function baja(){
+  const r=await pide(API+'/'+N.fileId+'?alt=media');
+  const d=await r.json();
+  if(Array.isArray(d.asig)&&d.asig.length) ASIG=d.asig;
+  if(Array.isArray(d.entregas)) entregas=d.entregas;
+  id=d.id||entregas.length;
+  entregas.forEach(e=>{ if(!e.estado) e.estado='pend';
+    if(e.aplazada===undefined){e.aplazada=0;e.fechaPrev=null;} });
+  alDisco();
+}
+
+/* --- subir, comprobando que nadie lo haya cambiado --- */
+let tSube=null;
+function subeLuego(){ clearTimeout(tSube); tSube=setTimeout(subeYa, 900); }
+
+async function subeYa(){
+  if(!N.dentro || !N.fileId){ return; }
+  if(N.subiendo){ N.pendiente=true; return; }
+  if(!tokenVale()){ entra(true); N.pendiente=true; return; }
+  N.subiendo=true; nEstado('Guardando…','espera');
+  try{
+    const r=await pide(API+'/'+N.fileId+'?fields=version');
+    const d=await r.json();
+    if(N.version && d.version && String(d.version)!==String(N.version)){
+      N.subiendo=false; return conflicto();
+    }
+    const r2=await pide(SUBE+'/'+N.fileId+'?uploadType=media&fields=version',
+      {method:'PATCH', headers:{'Content-Type':'application/json'},
+       body:JSON.stringify(paquete())});
+    const d2=await r2.json();
+    N.version=d2.version;
+    nEstado('Guardado en Drive');
+  }catch(e){
+    nEstado(navigator.onLine?'No se pudo guardar':'Sin conexión','mal');
+  }
+  N.subiendo=false;
+  if(N.pendiente){ N.pendiente=false; subeLuego(); }
+}
+
+/* Dos dispositivos han tocado lo mismo. No se pisa nada sin preguntar. */
+function conflicto(){
+  nEstado('Cambios en otro dispositivo','espera');
+  const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
+  const f=document.createElement('div'); f.className='ficha';
+  f.innerHTML='<div class="ficha-top"><h3>Cambios en otro dispositivo</h3></div>'+
+    '<div class="ficha-cuerpo"><p style="margin:0;line-height:1.6">'+
+    'Has cambiado algo aquí, pero el archivo de Drive también cambió desde '+
+    'otro móvil u ordenador. Elige con cuál te quedas.</p></div>'+
+    '<div class="acciones"><button class="btn sec" id="c-baja">Traer lo de Drive</button>'+
+    '<button class="btn ok" id="c-sube">Quedarme con esto</button></div>';
+  velo.appendChild(f); document.body.appendChild(velo);
+  $('#c-baja').onclick=async()=>{ velo.remove();
+    try{ await localiza(); await baja(); refresca(); nEstado('Guardado en Drive'); }
+    catch(e){ nEstado('No se pudo leer','mal'); } };
+  $('#c-sube').onclick=async()=>{ velo.remove();
+    try{ const r=await pide(API+'/'+N.fileId+'?fields=version');
+         N.version=(await r.json()).version; await subeYa(); }
+    catch(e){ nEstado('No se pudo guardar','mal'); } };
+}
+
+/* --- arranque tras entrar --- */
+async function arranca(){
+  nEstado('Conectando…','espera');
+  try{
+    await localiza();
+    await baja();
+    nEstado('Guardado en Drive');
+    const p=$('#portada'); if(p) p.remove();
+    refresca();
+  }catch(e){
+    if(e.message==='sesion'){ entra(false); return; }
+    nEstado('Sin conexión a Drive','mal');
+    const p=$('#portada'); if(p) p.remove();
+    refresca();
+  }
+}
+
+window.addEventListener('online', ()=>{ if(N.dentro) subeLuego(); });
 
 /* ====== estado ====== */
 let vista='lis', cursor=new Date(HOY), diaAbierto=null, editando=null, filtro=null;
@@ -963,8 +1168,16 @@ function abreAsig(){
       'calendario. Toca el cuadrado para cambiarlo.';
     c.appendChild(p);
     const rb=document.createElement('button'); rb.className='reinic';
-    rb.textContent='↺ Volver a los datos de ejemplo';
+    rb.textContent='↺ Cargar entregas de ejemplo';
     rb.onclick=reinicia; c.appendChild(rb);
+    if(N.dentro){
+      const sb=document.createElement('button'); sb.className='reinic';
+      sb.style.borderColor='var(--n1)'; sb.style.color='var(--n1)';
+      sb.textContent='Cerrar sesión en este dispositivo';
+      sb.onclick=()=>{ if(confirm('Se cerrará la sesión y se borrará la copia '+
+        'de este dispositivo. Tus entregas siguen en Drive. ¿Seguir?')) sal(); };
+      c.appendChild(sb);
+    }
   }
   dibuja();
 }
@@ -988,12 +1201,45 @@ function dictar(){
     if(i>=frase.length){ clearInterval(t); b.classList.remove('on'); } },28);
 }
 
-let gt=null;
 function guardado(){
   alDisco();
-  const e=$('#nube-txt'); if(!e) return;
-  e.textContent='Guardando…'; clearTimeout(gt);
-  gt=setTimeout(()=>{e.textContent='Guardado en este dispositivo';},700);
+  if(N.dentro){ nEstado('Guardando…','espera'); subeLuego(); }
+  else nEstado('Guardado en este dispositivo','espera');
+}
+
+/* ====== pantalla de entrada ======
+   Con sinRed=true se ofrece seguir con la copia local, para que una red
+   que bloquee Google no deje la aplicación inservible. */
+function muestraEntrada(sinRed){
+  if($('#portada')) return;
+  const hayCopia = entregas.length>0;
+  const d=document.createElement('div'); d.className='portada'; d.id='portada';
+  d.innerHTML =
+    '<div class="port-caja">'+
+      '<h1>Entregas de Clase</h1>'+
+      (sinRed
+        ? '<p>No se ha podido conectar con Google. Puede que no haya internet, '+
+          'o que esta red lo esté bloqueando.</p>'+
+          '<button class="btn ok" id="p-entrar">Reintentar</button>'+
+          (hayCopia
+            ? '<button class="btn sec" id="p-local" style="width:100%;margin-top:9px">'+
+              'Seguir sin conexión</button>'+
+              '<p class="port-pie">Verás la última copia guardada en este dispositivo. '+
+              'Lo que cambies se subirá a Drive cuando vuelvas a entrar.</p>'
+            : '<p class="port-pie">Todavía no hay ninguna copia en este dispositivo, '+
+              'así que la primera vez hace falta conexión.</p>')
+        : '<p>Tus trabajos y sus fechas de entrega, en todos tus dispositivos.</p>'+
+          '<button class="btn ok" id="p-entrar">Entrar con Google</button>'+
+          '<p class="port-pie">Se guarda en un archivo de tu Drive. La aplicación '+
+          'sólo puede ver ese archivo, nada más de tu cuenta.</p>')+
+    '</div>';
+  document.body.appendChild(d);
+  $('#p-entrar').onclick=()=>{
+    if(sinRed){ location.reload(); return; }
+    nEstado('Entrando…','espera'); entra(false);
+  };
+  const bl=$('#p-local');
+  if(bl) bl.onclick=()=>{ d.remove(); nEstado('Sin conexión · copia local','mal'); refresca(); };
 }
 
 function pinta(){
@@ -1022,6 +1268,32 @@ document.addEventListener('keydown',ev=>{
   if($('#velo')) $('#velo').remove(); else if(diaAbierto) cierraDia();
 });
 pinta();
+nEstado('Guardado en este dispositivo','espera');
+
+/* Si ya dio permiso antes, se entra sin molestar. Si no, portada.
+   Si la librería de Google no llega —sin internet, o una red que la
+   bloquea— no se espera indefinidamente: se ofrece seguir sin conexión. */
+(function inicio(intentos){
+  intentos = intentos||0;
+  if(!window.google || !google.accounts || !google.accounts.oauth2){
+    if(intentos > 15){ muestraEntrada(true); return; }
+    return setTimeout(()=>inicio(intentos+1), 300);
+  }
+  let resuelto=false;
+  const c=google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID, scope: AMBITO,
+    callback: r=>{ resuelto=true;
+      if(r && r.access_token){
+        N.token=r.access_token; N.caduca=Date.now()+((r.expires_in||3600)*1000);
+        N.dentro=true; N.cliente=c; arranca();
+      } else muestraEntrada();
+    },
+    error_callback: ()=>{ resuelto=true; muestraEntrada(); }
+  });
+  N.cliente=c;
+  c.requestAccessToken({prompt:''});
+  setTimeout(()=>{ if(!resuelto && !N.dentro) muestraEntrada(); }, 2500);
+})();
 </script>
 
 </body>

@@ -1,0 +1,1028 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5b4bd6">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Entregas de Clase</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Karla:wght@400;500;700&display=swap">
+<style>
+/* Layout: una columna. Calendario arriba; el día se abre encima a pantalla
+   completa; la ficha sube desde abajo.
+   Dos lenguajes visuales que no se pisan:
+     forma cuadrada + color = ASIGNATURA
+     círculo con número     = IMPORTANCIA */
+:root{
+  --tinta:#1b1a26; --tinta-2:#55536a; --tinta-3:#8b89a3;
+  --papel:#faf8f6; --papel-2:#ffffff; --linea:#e7e3e0; --linea-2:#f1eeec;
+  --marca:#5b4bd6; --marca-sup:#efecfd;
+  --n1:#d94b45; --n1-sup:#fdeceb;   /* importancia 1 */
+  --n2:#dd8a1f; --n2-sup:#fdf3e4;
+  --n3:#7a7792; --n3-sup:#f0eff4;
+  --n4:#a9a7b8; --n4-sup:#f4f3f7;
+  --ok:#4f9376;
+  --hecho:#9b99ae;
+  --display:'Fraunces',Georgia,serif;
+  --texto:'Karla',system-ui,-apple-system,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --tinta:#f2f0f7; --tinta-2:#b4b1c6; --tinta-3:#817e95;
+  --papel:#16151d; --papel-2:#1f1e28; --linea:#312f3e; --linea-2:#262533;
+  --marca:#9c8ef5; --marca-sup:#2a2540;
+  --n1:#f0756e; --n1-sup:#3a2422; --n2:#e6a648; --n2-sup:#3a2e1c;
+  --n3:#9b98b0; --n3-sup:#2a2936; --n4:#6f6c82; --n4-sup:#232230;
+  --ok:#74bb99; --hecho:#6b6880; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --tinta:#f2f0f7; --tinta-2:#b4b1c6; --tinta-3:#817e95;
+  --papel:#16151d; --papel-2:#1f1e28; --linea:#312f3e; --linea-2:#262533;
+  --marca:#9c8ef5; --marca-sup:#2a2540;
+  --n1:#f0756e; --n1-sup:#3a2422; --n2:#e6a648; --n2-sup:#3a2e1c;
+  --n3:#9b98b0; --n3-sup:#2a2936; --n4:#6f6c82; --n4-sup:#232230;
+  --ok:#74bb99; --hecho:#6b6880; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--papel);color:var(--tinta);
+  font-family:var(--texto);font-size:15px;line-height:1.5;
+  -webkit-tap-highlight-color:transparent}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+.tnum{font-variant-numeric:tabular-nums}
+
+.app{display:flex;flex-direction:column;height:100%;max-width:780px;margin:0 auto}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);
+  background:var(--papel-2);z-index:30}
+
+.barra{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;
+  background:var(--papel-2);border-bottom:1px solid var(--linea);padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px))}
+.barra-fila{display:flex;align-items:center;gap:10px}
+.marca{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.01em}
+.nube{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--tinta-3)}
+.punto{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:0 0 auto}
+.eng{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  font-size:16px;color:var(--tinta-2);border:1px solid var(--linea);flex:0 0 auto}
+.eng:active{background:var(--linea-2)}
+
+/* ---- asignaturas ---- */
+.alin{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--linea-2)}
+.alin:last-of-type{border-bottom:none}
+.swat{width:40px;height:40px;border-radius:11px;border:1px solid rgba(0,0,0,.14);
+  flex:0 0 auto;padding:0;overflow:hidden;position:relative;cursor:pointer}
+.swat input{position:absolute;inset:-6px;width:150%;height:150%;border:none;padding:0;
+  opacity:0;cursor:pointer}
+.anom{flex:1;min-width:0;background:var(--papel);border:1px solid var(--linea);
+  border-radius:10px;padding:10px 11px;font-size:15px;outline:none}
+.aquit{width:38px;height:38px;border-radius:10px;border:1px solid var(--linea);
+  color:var(--tinta-3);font-size:15px;flex:0 0 auto;display:grid;place-items:center}
+.aquit:hover{color:var(--n1);border-color:var(--n1)}
+.paleta{display:flex;flex-wrap:wrap;gap:7px;padding:8px 0 2px}
+.paleta button{width:26px;height:26px;border-radius:8px;border:2px solid transparent}
+.paleta button[aria-pressed="true"]{border-color:var(--tinta)}
+.nuevaasig{display:flex;align-items:center;gap:8px;margin-top:12px;padding:11px;
+  border:1.5px dashed var(--linea);border-radius:12px;color:var(--marca);
+  font-weight:700;font-size:14px;width:100%;justify-content:center}
+.conm{display:flex;gap:2px;background:var(--linea-2);border-radius:10px;padding:3px}
+.conm button{padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;color:var(--tinta-2)}
+.conm button[aria-pressed="true"]{background:var(--papel-2);color:var(--tinta);font-weight:700;
+  box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.nav{display:flex;align-items:center;gap:8px;margin-top:10px}
+.nav .mes{font-family:var(--display);font-size:20px;font-weight:700;flex:1;min-width:0}
+.nav .mes::first-letter{text-transform:uppercase}
+.rnd{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+  font-size:17px;color:var(--tinta-2);border:1px solid var(--linea);flex:0 0 auto}
+.rnd:active{background:var(--linea-2)}
+/* Un solo botón de filtro: aguanta cualquier número de asignaturas y no
+   obliga a desplazar una fila que en el PC no responde a la rueda. */
+.filtrof{display:flex;align-items:center;gap:8px;padding-block:10px 2px}
+.bfiltro{display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:19px;
+  border:1px solid var(--linea);background:var(--papel-2);color:var(--tinta-2);font-size:13px;
+  max-width:100%;min-width:0}
+.bfiltro.on{border-color:var(--tinta);color:var(--tinta);font-weight:600}
+.bfiltro span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bfiltro em{font-style:normal;color:var(--tinta-3);font-size:11px}
+.cuad{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+.xfiltro{width:30px;height:30px;border-radius:50%;border:1px solid var(--linea);
+  color:var(--tinta-3);font-size:13px;display:grid;place-items:center;flex:0 0 auto}
+
+.oplin{display:flex;align-items:center;gap:11px;padding:12px 2px;width:100%;
+  border-bottom:1px solid var(--linea-2);text-align:left;font-size:15px}
+.oplin:last-of-type{border-bottom:none}
+.oplin b{flex:1;min-width:0;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oplin .tic2{color:var(--marca);font-size:16px;font-weight:700}
+.oplin.acc{align-items:flex-start;gap:13px}
+.oplin.acc .aico{width:26px;text-align:center;font-size:17px;flex:0 0 auto;color:var(--tinta-2)}
+.oplin.acc b small{display:block;font-weight:400;font-size:12px;color:var(--tinta-3);
+  white-space:normal;margin-top:1px}
+.oplin.acc.mal .aico{color:var(--n1)}
+.oplin.acc.mal b{color:var(--n1)}
+.oplin .aico{width:22px;text-align:center;flex:0 0 auto;color:var(--tinta-3)}
+.rapidas{display:flex;flex-wrap:wrap;gap:7px}
+.rap{padding:8px 13px;border-radius:19px;border:1px solid var(--linea);
+  background:var(--papel);color:var(--tinta-2);font-size:13px}
+.rap:active{border-color:var(--marca);color:var(--marca)}
+.mas3{width:30px;height:26px;border-radius:8px;color:var(--tinta-3);font-size:17px;
+  line-height:1;flex:0 0 auto;margin-left:4px}
+.mas3:hover{background:var(--linea-2);color:var(--tinta)}
+.eti.fin{background:var(--p4-sup,var(--linea-2));color:var(--ok);font-weight:600}
+.eti.canc{background:var(--n1-sup);color:var(--n1);font-weight:600}
+.oplin[aria-pressed="true"] b{font-weight:700}
+.cuentan{font-size:12px;color:var(--tinta-3);flex:0 0 auto}
+.reinic{margin-top:14px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--linea);
+  color:var(--tinta-3);font-size:13px}
+
+/* ---- señales ---- */
+.ci{width:19px;height:19px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
+  font-size:10.5px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.ci.l1{background:var(--n1);color:#fff}
+.ci.l2{background:var(--n2);color:#fff}
+.ci.l3{background:var(--n3-sup);color:var(--n3);border:1.5px solid var(--n3)}
+.ci.l4{background:transparent;color:var(--n4);border:1.5px solid var(--n4)}
+.ci.mini{width:13px;height:13px;font-size:8px}
+
+.cuerpo{flex:1;overflow-y:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:12px 90px}
+
+/* ---- mes ---- */
+.dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px}
+.dow span{text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--tinta-3)}
+.rejilla{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.celda{min-height:76px;border-radius:11px;background:var(--papel-2);border:1px solid var(--linea);
+  display:flex;flex-direction:column;gap:3px;padding:6px 4px 5px;min-width:0;text-align:left}
+.celda:active{transform:scale(.96)}
+.celda.fuera{background:transparent;border-color:transparent}
+.celda.fuera .num{opacity:.4}
+.celda.hoy{border-color:var(--marca);border-width:2px}
+.num{font-size:13px;font-weight:500;line-height:1;text-align:center}
+.celda.hoy .num{background:var(--marca);color:#fff;width:22px;height:22px;border-radius:50%;
+  display:grid;place-items:center;font-weight:700;margin:0 auto;font-size:12px}
+.mrows{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mrow{display:flex;align-items:center;gap:3px;min-width:0}
+/* El color ya identifica la asignatura. El nombre sólo aparece cuando
+   cabe entero: recortado a "F…" no dice nada. */
+.mtag{flex:1;min-width:0;height:13px;border-radius:4px;overflow:hidden;
+  font-size:0;display:flex;align-items:center}
+@media(min-width:620px){
+  .mtag{height:auto;font-size:9px;font-weight:700;letter-spacing:.02em;
+    padding:2px 5px;text-transform:uppercase;white-space:nowrap}
+}
+.mas{font-size:9px;color:var(--tinta-3);font-weight:700;text-align:center}
+
+/* ---- semana ---- */
+.sem{display:flex;flex-direction:column;gap:8px}
+.tira{background:var(--papel-2);border:1px solid var(--linea);border-radius:var(--r);
+  padding:11px 13px;display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left}
+.tira.hoy{border-color:var(--marca);border-width:2px}
+.tira-d{flex:0 0 46px;text-align:center}
+.tira-d b{display:block;font-family:var(--display);font-size:20px;line-height:1.1}
+.tira-d span{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--tinta-3)}
+.tira-l{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.wrow{display:flex;align-items:center;gap:7px;min-width:0}
+.wtag{font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;white-space:nowrap;
+  text-transform:uppercase;letter-spacing:.03em}
+.wtxt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:13px;color:var(--tinta-2)}
+.whora{font-size:11.5px;color:var(--tinta-3);white-space:nowrap}
+.libre{font-size:12.5px;color:var(--tinta-3);font-style:italic}
+
+/* ---- próximas: una sola columna, lo que vence antes arriba ---- */
+.lista{display:flex;flex-direction:column;gap:9px}
+.fgrupo{display:flex;align-items:baseline;gap:9px;padding:14px 2px 2px}
+.fgrupo:first-child{padding-top:2px}
+.fgrupo b{font-family:var(--display);font-size:15px;font-weight:700}
+.fgrupo b::first-letter{text-transform:uppercase}
+.fgrupo span{font-size:11.5px;color:var(--tinta-3);margin-left:auto;white-space:nowrap}
+.fgrupo.atras b{color:var(--n1)}
+.ent.atras{border-color:var(--n1)}
+
+/* ---- día ---- */
+.capa{position:fixed;inset:0;z-index:40;background:var(--papel);
+  display:flex;flex-direction:column;animation:sube .22s ease}
+@keyframes sube{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.capa,.ficha{animation:none}}
+.capa-top{background:var(--papel-2);border-bottom:1px solid var(--linea);
+  padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;align-items:center;gap:12px}
+.capa-top h2{font-family:var(--display);font-size:19px;margin:0;flex:1;min-width:0;font-weight:700}
+.capa-top h2::first-letter{text-transform:uppercase}
+.capa-top h2 small{display:block;font-family:var(--texto);font-size:11.5px;font-weight:400;
+  color:var(--tinta-3)}
+.capa-cuerpo{flex:1;overflow-y:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:12px 110px;display:flex;flex-direction:column;gap:9px}
+
+.ent{background:var(--papel-2);border:1px solid var(--linea);border-radius:var(--r);
+  display:flex;gap:11px;align-items:flex-start;padding:12px 13px 12px 0;
+  position:relative;overflow:hidden;text-align:left;width:100%}
+.ent::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--c)}
+.ent.hecha{opacity:.62}
+.ent.hecha .etxt{text-decoration:line-through;color:var(--hecho)}
+.marcar{flex:0 0 auto;width:24px;height:24px;border-radius:8px;border:1.5px solid var(--linea);
+  display:grid;place-items:center;font-size:12px;color:transparent;margin-left:14px;margin-top:2px}
+.marcar.si{background:var(--ok);border-color:var(--ok);color:#fff}
+.ecu{flex:1;min-width:0}
+.ecab{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px}
+.asig{font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;text-transform:uppercase;
+  letter-spacing:.04em}
+.hora{font-size:12px;color:var(--tinta-2);font-weight:600;margin-left:auto}
+.etxt{line-height:1.4;word-wrap:break-word;font-size:14.5px}
+.epie{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px;align-items:center}
+.eti{font-size:11px;padding:2px 8px;border-radius:9px;background:var(--linea-2);color:var(--tinta-2)}
+.eti.urge{background:var(--n1-sup);color:var(--n1);font-weight:700}
+
+.fab{position:fixed;z-index:45;
+  right:calc(18px + env(safe-area-inset-right,0px));
+  bottom:calc(18px + env(safe-area-inset-bottom,0px));
+  height:52px;padding:0 20px;border-radius:26px;background:var(--marca);color:#fff;
+  font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;
+  box-shadow:0 6px 20px rgba(91,75,214,.38)}
+
+/* ---- ficha ---- */
+.velo{position:fixed;inset:0;z-index:50;background:rgba(10,9,16,.45);
+  display:flex;align-items:flex-end;justify-content:center}
+.ficha{background:var(--papel-2);width:100%;max-width:560px;border-radius:20px 20px 0 0;
+  max-height:94vh;overflow-y:auto;
+  padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));animation:sube .22s ease}
+@media(min-width:620px){ .velo{align-items:center} .ficha{border-radius:20px;max-height:90vh} }
+.ficha-top{position:sticky;top:0;background:var(--papel-2);z-index:2;
+  border-bottom:1px solid var(--linea);padding:14px 18px;display:flex;align-items:center;gap:12px}
+.ficha-top h3{margin:0;font-family:var(--display);font-size:17px;flex:1}
+.ficha-cuerpo{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.fila3{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fila3 .campo:first-child{grid-column:1 / -1}
+.campo{display:flex;flex-direction:column;gap:6px;min-width:0}
+.campo>label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--tinta-3)}
+.campo input,.campo select,.campo textarea{width:100%;background:var(--papel);
+  border:1px solid var(--linea);border-radius:11px;padding:12px 13px;font-size:15px;outline:none}
+.campo textarea{min-height:170px;resize:vertical;line-height:1.55}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{
+  outline:2px solid var(--marca);outline-offset:2px}
+.notas-caja{position:relative}
+.mic{position:absolute;right:9px;bottom:9px;width:42px;height:42px;border-radius:50%;
+  background:var(--marca-sup);color:var(--marca);display:grid;place-items:center;font-size:17px}
+.mic.on{background:var(--n1);color:#fff;animation:late 1s infinite}
+@keyframes late{50%{transform:scale(1.11)}}
+@media (prefers-reduced-motion:reduce){.mic.on{animation:none}}
+.creada{font-size:12px;color:var(--tinta-3);display:flex;align-items:center;gap:6px;margin:0}
+.acciones{display:flex;gap:9px;padding:0 18px}
+.btn{flex:1;height:50px;border-radius:13px;font-weight:700;font-size:15px;display:grid;place-items:center}
+.btn.ok{background:var(--marca);color:#fff}
+.btn.sec{border:1px solid var(--linea);color:var(--tinta-2)}
+.btn.borrar{flex:0 0 auto;width:50px;color:var(--n1);border:1px solid var(--linea);font-size:17px}
+
+.aviso{margin:16px 0 0;background:var(--marca-sup);border-radius:12px;padding:12px 14px;
+  font-size:12.5px;color:var(--tinta-2);line-height:1.6}
+.aviso b{color:var(--marca)}
+.vacio{text-align:center;color:var(--tinta-3);padding:40px 16px}
+.vacio b{display:block;font-family:var(--display);font-size:18px;color:var(--tinta-2);margin-bottom:5px}
+.leyenda{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;font-size:11.5px;color:var(--tinta-3)}
+.leyenda span{display:flex;align-items:center;gap:5px}
+.toast{position:fixed;z-index:70;left:50%;transform:translateX(-50%);
+  bottom:calc(84px + env(safe-area-inset-bottom,0px));
+  background:var(--tinta);color:var(--papel);padding:11px 16px;border-radius:12px;
+  font-size:13px;max-width:min(420px,88vw);box-shadow:0 8px 24px rgba(0,0,0,.28)}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="barra">
+    <div class="barra-fila">
+      <span class="marca">Entregas de Clase</span>
+      <span class="nube"><i class="punto"></i><span id="nube-txt">Guardado en este dispositivo</span></span>
+      <button class="eng" id="b-asig" aria-label="Asignaturas" title="Asignaturas">⚙</button>
+    </div>
+    <div class="nav">
+      <button class="rnd" id="ant" aria-label="Anterior">‹</button>
+      <button class="rnd" id="sig" aria-label="Siguiente">›</button>
+      <span class="mes" id="titulo"></span>
+      <div class="conm">
+        <button id="v-lis" aria-pressed="true">Próximas</button>
+        <button id="v-sem" aria-pressed="false">Semana</button>
+        <button id="v-mes" aria-pressed="false">Mes</button>
+      </div>
+    </div>
+    <div class="filtrof" id="filtros"></div>
+  </header>
+  <main class="cuerpo" id="cuerpo"></main>
+</div>
+<button class="fab" id="fab-lista" hidden>＋ Nueva entrega</button>
+
+<script>
+/* ====== asignaturas: el COLOR identifica la asignatura ======
+   Cada una tiene un id propio. Las entregas guardan ese id, no el
+   nombre, para que renombrarla no rompa nada. */
+let ASIG = [
+  {id:'a1', n:'Matemáticas', c:'#6b4fd1'},
+  {id:'a2', n:'Física',      c:'#1f7f93'},
+  {id:'a3', n:'Química',     c:'#2f8f5f'},
+  {id:'a4', n:'Historia',    c:'#8a5a2b'},
+  {id:'a5', n:'Lengua',      c:'#b23a86'},
+  {id:'a6', n:'Inglés',      c:'#2b6cb8'},
+  {id:'a7', n:'Biología',    c:'#6d8f1e'},
+  {id:'a8', n:'General',     c:'#6d6a85'}
+];
+const SUGER = ['#6b4fd1','#1f7f93','#2f8f5f','#8a5a2b','#b23a86','#2b6cb8',
+               '#6d8f1e','#c2571f','#8d3f9e','#1f7a6b','#a8322f','#6d6a85'];
+const A = id => ASIG.find(a=>a.id===id) || {id:'?', n:'Sin asignatura', c:'#6d6a85'};
+const porNombre = n => ASIG.find(a=>a.n===n);
+
+/* importancia: círculo con número, sin color de asignatura */
+const NIV = [
+  {n:1, nom:'1 · Urgente e importante'},
+  {n:2, nom:'2 · Importante'},
+  {n:3, nom:'3 · Normal'},
+  {n:4, nom:'4 · Puede esperar'}
+];
+const ALARMAS = ['Sin alarma','A la hora','1 hora antes','3 horas antes',
+                 'La tarde anterior','1 día antes','3 días antes','1 semana antes'];
+
+const HOY = new Date(); HOY.setHours(0,0,0,0);
+const k = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const desp = n => { const d=new Date(HOY); d.setDate(d.getDate()+n); return k(d); };
+const kFecha = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+
+let id=0;
+/* estado: 'pend' pendiente · 'fin' terminada · 'canc' cancelada (papelera) */
+const E=(nombre,niv,fecha,hora,notas,alarma,hecha)=>({
+  id:++id, asigId:(porNombre(nombre)||ASIG[ASIG.length-1]).id,
+  niv, fecha, hora, notas, alarma:alarma||'Sin alarma',
+  estado: hecha?'fin':'pend', aplazada:0, fechaPrev:null,
+  creada:new Date(Date.now()-((id*53)%12)*864e5).toISOString()});
+
+let entregas=[
+  E('Lengua',1,desp(0),'23:59','Comentario de texto de "La casa de Bernarda Alba". Subirlo al aula virtual.','A la hora'),
+  E('Física',2,desp(0),'08:30','Práctica del péndulo: tabla de medidas y cálculo del error absoluto y relativo.','La tarde anterior'),
+  E('Matemáticas',1,desp(2),'08:00','Boletín de ejercicios 3.2, derivadas y límites. Entregar a mano en clase.','1 día antes'),
+  E('Historia',2,desp(3),'10:15','Diapositivas de la crisis de los misiles. Me toca del minuto 8 al 13.','La tarde anterior'),
+  E('Inglés',3,desp(4),'09:00','Guion de la exposición oral sobre carreras de ingeniería. Cinco minutos sin leer.','1 día antes'),
+  E('Biología',3,desp(4),'12:00','Esquema del tema 5: mitosis y meiosis.','Sin alarma'),
+  E('Química',2,desp(6),'08:30','Formulario de orgánica completo. Pedir el del año pasado a Marta.','3 días antes'),
+  E('Lengua',3,desp(7),'23:59','Ficha de lectura del acto III.','1 día antes'),
+  E('Matemáticas',1,desp(9),'08:00','Entrega del trabajo de estadística con las gráficas hechas en el ordenador.','1 semana antes'),
+  E('General',4,desp(10),'17:00','Devolver los libros de la biblioteca del instituto.','1 día antes'),
+  E('Historia',2,desp(11),'10:15','Exposición en clase. Llevar el guion impreso por si falla el proyector.','3 días antes'),
+  E('Física',3,desp(-2),'08:30','Problemas del tema 2, del 14 al 20.','Sin alarma',true),
+  E('Inglés',4,desp(-1),'09:00','Redacción corta sobre las vacaciones.','Sin alarma',true),
+  E('General',4,desp(14),'09:00','Traer la autorización firmada para la excursión.','3 días antes')
+];
+
+/* guardado en el dispositivo */
+const LLAVE='entregas.mock.v1';
+try{ const g=localStorage.getItem(LLAVE);
+  if(g){ const d=JSON.parse(g);
+    if(Array.isArray(d.asig)&&d.asig.length) ASIG=d.asig;
+    if(Array.isArray(d.entregas)&&d.entregas.length){
+      entregas=d.entregas; id=d.id||entregas.length;
+      /* datos de versiones anteriores guardaban el NOMBRE: se traducen */
+      entregas.forEach(e=>{
+        if(!e.asigId){
+          const a=porNombre(e.asig); e.asigId = a ? a.id : ASIG[ASIG.length-1].id;
+          delete e.asig;
+        }
+        /* versiones anteriores guardaban hecha:true/false */
+        if(!e.estado){ e.estado = e.hecha?'fin':'pend'; delete e.hecha; }
+        if(e.aplazada===undefined){ e.aplazada=0; e.fechaPrev=null; }
+      });
+    } }
+}catch(e){}
+function alDisco(){ try{ localStorage.setItem(LLAVE, JSON.stringify({entregas,id,asig:ASIG})); }catch(e){} }
+function reinicia(){ try{ localStorage.removeItem(LLAVE); }catch(e){} location.reload(); }
+
+/* ====== estado ====== */
+let vista='lis', cursor=new Date(HOY), diaAbierto=null, editando=null, filtro=null;
+/* qué estados se ven: por defecto sólo lo pendiente */
+let fEstado='pend';
+const ESTADOS=[
+  {k:'pend', n:'Pendientes'},
+  {k:'fin',  n:'Terminadas'},
+  {k:'canc', n:'Papelera'},
+  {k:'todo', n:'Todas'}
+];
+const verEstado = e => fEstado==='todo' ? true : e.estado===fEstado;
+/* el mensaje de "no hay nada" tiene que hablar de lo que se está mirando */
+const VACIOS={
+  pend:['Nada pendiente','No queda ninguna entrega por hacer.'],
+  fin :['Nada terminada','Todavía no has dado ninguna entrega por terminada.'],
+  canc:['La papelera está vacía','No hay ninguna entrega cancelada.'],
+  todo:['Sin entregas','Todavía no hay ninguna entrega apuntada.']
+};
+const VACIOS_DIA={
+  pend:['Nada que entregar','Este día está libre.'],
+  fin :['Nada terminada','Ninguna entrega de este día está terminada.'],
+  canc:['La papelera está vacía','No hay entregas canceladas de este día.'],
+  todo:['Sin entregas','No hay nada apuntado para este día.']
+};
+const $=s=>document.querySelector(s);
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+             'septiembre','octubre','noviembre','diciembre'];
+const DIAS=['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+const lunes=d=>{const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));x.setHours(0,0,0,0);return x;};
+const primeraLinea=t=>{const l=(t||'').trim().split('\n')[0];return l||'Sin descripción';};
+
+const delDia=key=>entregas
+  .filter(e=>e.fecha===key && (!filtro||e.asigId===filtro) && verEstado(e))
+  /* dentro del día manda la importancia; la hora sólo informa */
+  .sort((a,b)=> (a.estado!=='pend')-(b.estado!=='pend') || a.niv-b.niv
+             || (a.hora||'').localeCompare(b.hora||''));
+
+function circulo(n,mini){
+  const c=document.createElement('span');
+  c.className='ci l'+n+(mini?' mini':'');
+  c.textContent=n;
+  c.title='Importancia '+n;
+  return c;
+}
+
+/* fecha corta para los avisos: "26 oct" */
+function fCorta(f){ const d=kFecha(f); return d.getDate()+' '+MESES[d.getMonth()].slice(0,3); }
+
+/* ====== acciones sobre una entrega ====== */
+function abreAcciones(e){
+  const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
+  velo.onclick=ev=>{ if(ev.target===velo) velo.remove(); };
+  const f=document.createElement('div'); f.className='ficha';
+  f.innerHTML='<div class="ficha-top"><h3>'+(primeraLinea(e.notas).slice(0,40))+'</h3>'+
+    '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
+    '<div class="ficha-cuerpo" id="accu"></div>';
+  velo.appendChild(f); document.body.appendChild(velo);
+  $('#cerrar').onclick=()=>velo.remove();
+  const c=$('#accu');
+
+  const op=(icono,texto,sub,fn,peligro)=>{
+    const b=document.createElement('button'); b.className='oplin acc'+(peligro?' mal':'');
+    b.innerHTML='<span class="aico">'+icono+'</span><b>'+texto+
+      (sub?'<small>'+sub+'</small>':'')+'</b>';
+    b.onclick=()=>{ fn(); velo.remove(); guardado(); refresca(); };
+    c.appendChild(b);
+  };
+
+  if(e.estado==='canc'){
+    op('↩','Restaurar','Vuelve a las pendientes',()=>{ e.estado='pend'; });
+    op('🗑','Eliminar definitivamente','Esto no se puede deshacer',
+       ()=>{ entregas=entregas.filter(x=>x.id!==e.id); }, true);
+  } else {
+    if(e.estado!=='fin')
+      op('✓','Dar por terminada','Deja de aparecer, pero no se borra',()=>{ e.estado='fin'; });
+    else
+      op('↩','Volver a pendiente','',()=>{ e.estado='pend'; });
+    op('↷','Aplazar…','Elegir una nueva fecha de entrega',()=>{
+        setTimeout(()=>abreAplazar(e),60); });
+    op('✕','Cancelar entrega','Va a la papelera, se puede recuperar',
+       ()=>{ e.estado='canc'; }, true);
+  }
+  op('✎','Editar',' ',()=>{ setTimeout(()=>abreFicha(e),60); });
+}
+
+function abreAplazar(e){
+  const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
+  velo.onclick=ev=>{ if(ev.target===velo) velo.remove(); };
+  const f=document.createElement('div'); f.className='ficha';
+  f.innerHTML='<div class="ficha-top"><h3>Aplazar entrega</h3>'+
+    '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
+    '<div class="ficha-cuerpo">'+
+      '<p class="creada">Ahora es el <b>'+fCorta(e.fecha)+'</b> a las '+e.hora+'</p>'+
+      '<div class="rapidas" id="rap"></div>'+
+      '<div class="campo"><label for="ap-fe">Nueva fecha</label>'+
+        '<input type="date" id="ap-fe" value="'+e.fecha+'"></div>'+
+      '<div class="campo"><label for="ap-ho">Hora</label>'+
+        '<input type="time" id="ap-ho" value="'+e.hora+'"></div>'+
+    '</div>'+
+    '<div class="acciones"><button class="btn sec" id="ap-can">Cancelar</button>'+
+      '<button class="btn ok" id="ap-ok">Aplazar</button></div>';
+  velo.appendChild(f); document.body.appendChild(velo);
+  $('#cerrar').onclick=$('#ap-can').onclick=()=>velo.remove();
+
+  const base=kFecha(e.fecha);
+  [['Mañana',1],['En 3 días',3],['1 semana',7],['2 semanas',14]].forEach(([t,n])=>{
+    const b=document.createElement('button'); b.className='rap'; b.textContent=t;
+    b.onclick=()=>{ const d=new Date(base); d.setDate(d.getDate()+n); $('#ap-fe').value=k(d); };
+    $('#rap').appendChild(b);
+  });
+
+  $('#ap-ok').onclick=()=>{
+    const nueva=$('#ap-fe').value;
+    if(!nueva) return;
+    if(nueva!==e.fecha){ e.fechaPrev=e.fecha; e.aplazada=(e.aplazada||0)+1; }
+    e.fecha=nueva; e.hora=$('#ap-ho').value||e.hora; e.estado='pend';
+    velo.remove(); guardado();
+    if(diaAbierto) diaAbierto=e.fecha;
+    refresca();
+  };
+}
+
+/* ====== filtro de asignatura ====== */
+function pintaFiltros(){
+  const c=$('#filtros'); c.innerHTML='';
+  const a = filtro ? A(filtro) : null;
+  const b=document.createElement('button');
+  b.className='bfiltro'+(a?' on':'');
+  if(a){ const q=document.createElement('i'); q.className='cuad';
+    q.style.background=a.c; b.appendChild(q); }
+  const t=document.createElement('span');
+  t.textContent = a ? a.n : 'Todas las asignaturas';
+  b.appendChild(t);
+  b.appendChild(Object.assign(document.createElement('em'),{textContent:'▾'}));
+  b.onclick=abreFiltro;
+  c.appendChild(b);
+  if(a){
+    const x=document.createElement('button'); x.className='xfiltro'; x.textContent='✕';
+    x.setAttribute('aria-label','Quitar el filtro');
+    x.onclick=()=>{ filtro=null; pinta(); };
+    c.appendChild(x);
+  }
+
+  const est=ESTADOS.find(x=>x.k===fEstado);
+  const be=document.createElement('button');
+  be.className='bfiltro'+(fEstado!=='pend'?' on':'');
+  be.appendChild(Object.assign(document.createElement('span'),
+    {textContent:(fEstado==='canc'?'🗑 ':'')+est.n}));
+  be.appendChild(Object.assign(document.createElement('em'),{textContent:'▾'}));
+  be.onclick=abreEstado;
+  c.appendChild(be);
+}
+
+function abreEstado(){
+  const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
+  velo.onclick=ev=>{ if(ev.target===velo) velo.remove(); };
+  const f=document.createElement('div'); f.className='ficha';
+  f.innerHTML='<div class="ficha-top"><h3>Qué entregas ver</h3>'+
+    '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
+    '<div class="ficha-cuerpo" id="ecuerpo"></div>';
+  velo.appendChild(f); document.body.appendChild(velo);
+  $('#cerrar').onclick=()=>velo.remove();
+  const c=$('#ecuerpo');
+  const cuenta=k2=>k2==='todo'?entregas.length:entregas.filter(e=>e.estado===k2).length;
+  ESTADOS.forEach(x=>{
+    const b=document.createElement('button'); b.className='oplin';
+    b.setAttribute('aria-pressed', fEstado===x.k?'true':'false');
+    b.innerHTML='<span class="aico">'+
+      (x.k==='pend'?'◻':x.k==='fin'?'✓':x.k==='canc'?'🗑':'≡')+'</span>'+
+      '<b>'+x.n+'</b><span class="cuentan">'+cuenta(x.k)+'</span>'+
+      (fEstado===x.k?'<span class="tic2">✓</span>':'');
+    b.onclick=()=>{ fEstado=x.k; velo.remove(); pinta(); };
+    c.appendChild(b);
+  });
+  if(cuenta('canc')){
+    const v=document.createElement('button'); v.className='reinic';
+    v.textContent='Vaciar la papelera ('+cuenta('canc')+')';
+    v.onclick=()=>{ entregas=entregas.filter(e=>e.estado!=='canc');
+      velo.remove(); guardado(); pinta();
+      avisa('Papelera vaciada.'); };
+    c.appendChild(v);
+  }
+}
+
+function abreFiltro(){
+  const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
+  velo.onclick=ev=>{ if(ev.target===velo) velo.remove(); };
+  const f=document.createElement('div'); f.className='ficha';
+  f.innerHTML='<div class="ficha-top"><h3>Ver asignatura</h3>'+
+    '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
+    '<div class="ficha-cuerpo" id="fcuerpo"></div>';
+  velo.appendChild(f); document.body.appendChild(velo);
+  $('#cerrar').onclick=()=>velo.remove();
+
+  const c=$('#fcuerpo');
+  const pendientes = id => entregas.filter(e=>e.estado==='pend' && (!id||e.asigId===id)).length;
+  const opcion=(color,nombre,activo,n,fn)=>{
+    const b=document.createElement('button'); b.className='oplin';
+    b.setAttribute('aria-pressed',activo?'true':'false');
+    const q=document.createElement('i'); q.className='cuad';
+    q.style.background=color||'transparent';
+    if(!color) q.style.border='1.5px solid var(--linea)';
+    b.appendChild(q);
+    b.appendChild(Object.assign(document.createElement('b'),{textContent:nombre}));
+    b.appendChild(Object.assign(document.createElement('span'),
+      {className:'cuentan', textContent:n?n+' pend.':'—'}));
+    if(activo) b.appendChild(Object.assign(document.createElement('span'),
+      {className:'tic2', textContent:'✓'}));
+    b.onclick=()=>{ fn(); velo.remove(); pinta(); };
+    c.appendChild(b);
+  };
+  opcion(null,'Todas las asignaturas',!filtro,pendientes(null),()=>filtro=null);
+  ASIG.forEach(a=>opcion(a.c,a.n,filtro===a.id,pendientes(a.id),()=>filtro=a.id));
+}
+
+/* ====== mes ====== */
+function pintaMes(){
+  const c=$('#cuerpo'); c.innerHTML='';
+  $('#titulo').textContent=MESES[cursor.getMonth()]+' '+cursor.getFullYear();
+  const dow=document.createElement('div'); dow.className='dow';
+  ['L','M','X','J','V','S','D'].forEach(d=>{const s=document.createElement('span');s.textContent=d;dow.appendChild(s);});
+  c.appendChild(dow);
+
+  const g=document.createElement('div'); g.className='rejilla';
+  const off=(new Date(cursor.getFullYear(),cursor.getMonth(),1).getDay()+6)%7;
+  for(let i=0;i<42;i++){
+    const f=new Date(cursor.getFullYear(),cursor.getMonth(),1-off+i);
+    const dentro=f.getMonth()===cursor.getMonth();
+    const b=document.createElement('button');
+    b.className='celda'+(dentro?'':' fuera')+(k(f)===k(HOY)?' hoy':'');
+    b.setAttribute('aria-label',f.getDate()+' de '+MESES[f.getMonth()]);
+    const n=document.createElement('div'); n.className='num tnum'; n.textContent=f.getDate();
+    b.appendChild(n);
+
+    const lista=delDia(k(f));
+    if(lista.length){
+      const rows=document.createElement('div'); rows.className='mrows';
+      lista.slice(0,2).forEach(e=>{
+        const a=A(e.asigId);
+        const r=document.createElement('div'); r.className='mrow';
+        const t=document.createElement('span'); t.className='mtag';
+        t.style.background=a.c; t.style.color='#fff'; t.textContent=a.n; t.title=a.n;
+        r.appendChild(t); r.appendChild(circulo(e.niv,true)); rows.appendChild(r);
+      });
+      if(lista.length>2){const m=document.createElement('div');m.className='mas';
+        m.textContent='+'+(lista.length-2);rows.appendChild(m);}
+      b.appendChild(rows);
+    }
+    b.onclick=()=>abreDia(k(f));
+    g.appendChild(b);
+  }
+  c.appendChild(g);
+  c.appendChild(leyenda());
+}
+
+/* ====== semana ====== */
+function pintaSemana(){
+  const c=$('#cuerpo'); c.innerHTML='';
+  const a=lunes(cursor), z=new Date(a); z.setDate(z.getDate()+6);
+  $('#titulo').textContent=a.getDate()+' – '+z.getDate()+' '+MESES[z.getMonth()];
+  const w=document.createElement('div'); w.className='sem';
+  for(let i=0;i<7;i++){
+    const f=new Date(a); f.setDate(a.getDate()+i);
+    const t=document.createElement('button'); t.className='tira'+(k(f)===k(HOY)?' hoy':'');
+    t.innerHTML='<div class="tira-d"><b class="tnum">'+f.getDate()+'</b><span>'+DIAS[i].slice(0,3)+'</span></div>';
+    const l=document.createElement('div'); l.className='tira-l';
+    const lista=delDia(k(f));
+    if(!lista.length){const v=document.createElement('span');v.className='libre';
+      v.textContent='Sin entregas';l.appendChild(v);}
+    else lista.slice(0,4).forEach(e=>{
+      const as=A(e.asigId);
+      const r=document.createElement('div'); r.className='wrow';
+      const tag=document.createElement('span'); tag.className='wtag';
+      tag.style.background=as.c+'22'; tag.style.color=as.c; tag.textContent=as.n;
+      r.appendChild(tag); r.appendChild(circulo(e.niv));
+      const tx=document.createElement('span'); tx.className='wtxt'; tx.textContent=primeraLinea(e.notas);
+      if(e.hecha){tx.style.textDecoration='line-through';tx.style.color='var(--hecho)';}
+      r.appendChild(tx);
+      const h=document.createElement('span'); h.className='whora tnum'; h.textContent=e.hora;
+      r.appendChild(h); l.appendChild(r);
+    });
+    if(lista.length>4){const m=document.createElement('span');m.className='libre';
+      m.textContent='y '+(lista.length-4)+' más';l.appendChild(m);}
+    t.appendChild(l); t.onclick=()=>abreDia(k(f)); w.appendChild(t);
+  }
+  c.appendChild(w); c.appendChild(leyenda());
+}
+
+/* ====== próximas ====== */
+function pintaLista(){
+  const c=$('#cuerpo'); c.innerHTML='';
+  const ahora=new Date();
+  const pend=entregas
+    .filter(e=>verEstado(e) && (!filtro||e.asigId===filtro))
+    .sort((a,b)=> a.fecha.localeCompare(b.fecha) || a.niv-b.niv
+               || (a.hora||'').localeCompare(b.hora||''));
+  const palabra = fEstado==='pend'?['pendiente','pendientes']
+                : fEstado==='fin' ?['terminada','terminadas']
+                : fEstado==='canc'?['en la papelera','en la papelera']
+                : ['entrega','entregas'];
+  $('#titulo').textContent = pend.length
+    ? pend.length+' '+palabra[pend.length===1?0:1]
+    : VACIOS[fEstado][0];
+
+  if(!pend.length){
+    const [t,sub]=VACIOS[fEstado];
+    const z=document.createElement('div'); z.className='vacio';
+    z.appendChild(Object.assign(document.createElement('b'),{textContent:t}));
+    z.appendChild(document.createTextNode(sub));
+    c.appendChild(z); return;
+  }
+
+  const caja=document.createElement('div'); caja.className='lista';
+  let ultima=null;
+  pend.forEach(e=>{
+    if(e.fecha!==ultima){
+      ultima=e.fecha;
+      const f=kFecha(e.fecha);
+      const dias=Math.round((f-HOY)/864e5);
+      const h=document.createElement('div'); h.className='fgrupo'+(dias<0?' atras':'');
+      const nom = dias===0?'Hoy' : dias===1?'Mañana' :
+        DIAS[(f.getDay()+6)%7]+' '+f.getDate()+' de '+MESES[f.getMonth()];
+      const cuanto = dias<0 ? 'hace '+(-dias)+(dias===-1?' día':' días')
+                   : dias===0 ? ''
+                   : 'en '+dias+(dias===1?' día':' días');
+      h.innerHTML='<b>'+nom+'</b><span>'+cuanto+'</span>';
+      caja.appendChild(h);
+    }
+    const t=tarjeta(e);
+    const venc=new Date(e.fecha+'T'+(e.hora||'23:59'));
+    if(venc<ahora) t.classList.add('atras');
+    caja.appendChild(t);
+  });
+  c.appendChild(caja);
+  c.appendChild(leyenda());
+}
+
+function leyenda(){
+  const d=document.createElement('div');
+  const p=document.createElement('p'); p.className='aviso';
+  p.innerHTML='El <b>color</b> dice de qué asignatura es. El <b>círculo</b> dice '+
+    'lo importante que es. Toca un día para ver las entregas completas.';
+  d.appendChild(p);
+  const l=document.createElement('div'); l.className='leyenda';
+  NIV.forEach(n=>{const s=document.createElement('span');
+    s.appendChild(circulo(n.n)); s.appendChild(document.createTextNode(n.nom.slice(4)));
+    l.appendChild(s);});
+  d.appendChild(l);
+  return d;
+}
+
+/* ====== día ====== */
+function abreDia(key){ diaAbierto=key; pintaDia(); }
+function cierraDia(){ diaAbierto=null; const c=$('#capa'); if(c)c.remove(); pinta(); }
+
+/* vuelve a dibujar lo que esté abierto: el día si lo hay, si no la vista */
+function refresca(){ if(diaAbierto) pintaDia(); else pinta(); }
+
+function pintaDia(){
+  const v=$('#capa'); if(v)v.remove();
+  const f=kFecha(diaAbierto);
+  const capa=document.createElement('div'); capa.className='capa'; capa.id='capa';
+  const top=document.createElement('div'); top.className='capa-top';
+  const atras=document.createElement('button'); atras.className='rnd'; atras.textContent='‹';
+  atras.setAttribute('aria-label','Volver'); atras.onclick=cierraDia;
+  const lista=delDia(diaAbierto);
+  const h=document.createElement('h2');
+  const esHoy=diaAbierto===k(HOY);
+  h.innerHTML=(esHoy?'Hoy, ':'')+DIAS[(f.getDay()+6)%7]+' '+f.getDate()+' de '+MESES[f.getMonth()]+
+    '<small>'+(lista.length? lista.length+(lista.length===1?' entrega':' entregas') :'sin entregas')+'</small>';
+  top.appendChild(atras); top.appendChild(h); capa.appendChild(top);
+
+  const cu=document.createElement('div'); cu.className='capa-cuerpo';
+  if(!lista.length){
+    const [t,sub]=VACIOS_DIA[fEstado];
+    const z=document.createElement('div'); z.className='vacio';
+    z.appendChild(Object.assign(document.createElement('b'),{textContent:t}));
+    z.appendChild(document.createTextNode(sub));
+    cu.appendChild(z);
+  }
+  lista.forEach(e=>cu.appendChild(tarjeta(e)));
+  capa.appendChild(cu);
+
+  const fab=document.createElement('button'); fab.className='fab';
+  fab.textContent='＋ Nueva entrega'; fab.onclick=()=>abreFicha(null);
+  capa.appendChild(fab);
+  document.body.appendChild(capa);
+}
+
+function tarjeta(e){
+  const as=A(e.asigId);
+  const apagada = e.estado!=='pend';
+  const d=document.createElement('div'); d.className='ent'+(apagada?' hecha':'');
+  d.style.setProperty('--c', apagada?'var(--hecho)':as.c);
+
+  const m=document.createElement('button'); m.className='marcar'+(e.estado==='fin'?' si':'');
+  m.textContent='✓';
+  m.setAttribute('aria-label', e.estado==='fin'?'Marcar como pendiente':'Marcar como terminada');
+  m.onclick=ev=>{ev.stopPropagation();
+    e.estado = e.estado==='fin' ? 'pend' : 'fin'; guardado(); refresca();};
+  d.appendChild(m);
+
+  const cu=document.createElement('div'); cu.className='ecu';
+  const cab=document.createElement('div'); cab.className='ecab';
+  const tag=document.createElement('span'); tag.className='asig';
+  tag.style.background=as.c+'22'; tag.style.color=as.c; tag.textContent=as.n;
+  cab.appendChild(tag);
+  cab.appendChild(circulo(e.niv));
+  const ho=document.createElement('span'); ho.className='hora tnum'; ho.textContent=e.hora;
+  cab.appendChild(ho);
+  const mas=document.createElement('button'); mas.className='mas3'; mas.textContent='⋯';
+  mas.setAttribute('aria-label','Más opciones');
+  mas.onclick=ev=>{ ev.stopPropagation(); abreAcciones(e); };
+  cab.appendChild(mas);
+  cu.appendChild(cab);
+
+  const tx=document.createElement('div'); tx.className='etxt'; tx.textContent=e.notas||'Sin descripción';
+  cu.appendChild(tx);
+
+  const pie=document.createElement('div'); pie.className='epie';
+  if(e.estado==='fin') pie.appendChild(Object.assign(document.createElement('span'),
+    {className:'eti fin', textContent:'✓ Terminada'}));
+  if(e.estado==='canc') pie.appendChild(Object.assign(document.createElement('span'),
+    {className:'eti canc', textContent:'✕ Cancelada'}));
+  if(e.aplazada) pie.appendChild(Object.assign(document.createElement('span'),
+    {className:'eti', textContent:'↷ Aplazada '+e.aplazada+(e.aplazada===1?' vez':' veces')+
+      (e.fechaPrev?' · era el '+fCorta(e.fechaPrev):'')}));
+  if(e.alarma!=='Sin alarma' && e.estado==='pend'){const a=document.createElement('span');
+    a.className='eti'+(e.niv===1?' urge':''); a.textContent='🔔 '+e.alarma; pie.appendChild(a);}
+  if(pie.children.length) cu.appendChild(pie);
+  d.appendChild(cu);
+
+  d.onclick=ev=>{ if(!ev.target.closest('.marcar')) abreFicha(e); };
+  return d;
+}
+
+/* ====== ficha ====== */
+function abreFicha(e){
+  const nuevo=!e;
+  editando = e || {id:null, asigId:ASIG[ASIG.length-1].id, niv:3, fecha:diaAbierto||k(HOY), hora:'09:00',
+                   notas:'', alarma:'1 día antes', hecha:false, creada:new Date().toISOString()};
+  const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
+  velo.onclick=ev=>{ if(ev.target===velo) velo.remove(); };
+  const f=document.createElement('div'); f.className='ficha';
+  f.innerHTML =
+   '<div class="ficha-top"><h3>'+(nuevo?'Nueva entrega':'Editar entrega')+'</h3>'+
+     '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
+   '<div class="ficha-cuerpo">'+
+     '<div class="fila3">'+
+       '<div class="campo"><label for="f-as">Asignatura</label><select id="f-as">'+
+         ASIG.map(a=>'<option value="'+a.id+'">'+a.n+'</option>').join('')+'</select></div>'+
+       '<div class="campo"><label for="f-fe">Fecha de entrega</label>'+
+         '<input type="date" id="f-fe"></div>'+
+       '<div class="campo"><label for="f-ho">Hora</label><input type="time" id="f-ho"></div>'+
+     '</div>'+
+     '<div class="campo"><label for="f-no">Notas</label>'+
+       '<div class="notas-caja"><textarea id="f-no" placeholder="Qué hay que entregar y cómo"></textarea>'+
+       '<button class="mic" id="f-mic" aria-label="Dictar">🎙</button></div></div>'+
+     '<div class="campo"><label for="f-ni">Nivel de importancia</label><select id="f-ni">'+
+       NIV.map(n=>'<option value="'+n.n+'">'+n.nom+'</option>').join('')+'</select></div>'+
+     '<div class="campo"><label for="f-al">Alarma</label><select id="f-al">'+
+       ALARMAS.map(a=>'<option>'+a+'</option>').join('')+'</select></div>'+
+     '<p class="creada">🕐 Creada el <span id="f-cr"></span></p>'+
+   '</div>'+
+   '<div class="acciones">'+
+     (nuevo?'':'<button class="btn borrar" id="f-del" aria-label="Borrar">🗑</button>')+
+     '<button class="btn sec" id="f-can">Cancelar</button>'+
+     '<button class="btn ok" id="f-ok">Guardar</button></div>';
+  velo.appendChild(f); document.body.appendChild(velo);
+
+  $('#f-as').value=editando.asigId; $('#f-fe').value=editando.fecha;
+  $('#f-ho').value=editando.hora; $('#f-no').value=editando.notas;
+  $('#f-ni').value=String(editando.niv); $('#f-al').value=editando.alarma;
+  const cr=new Date(editando.creada);
+  $('#f-cr').textContent=cr.getDate()+' de '+MESES[cr.getMonth()]+', '+
+    String(cr.getHours()).padStart(2,'0')+':'+String(cr.getMinutes()).padStart(2,'0');
+
+  $('#cerrar').onclick=$('#f-can').onclick=()=>velo.remove();
+  const del=$('#f-del');
+  if(del) del.onclick=()=>{ entregas=entregas.filter(x=>x.id!==editando.id);
+    velo.remove(); guardado(); refresca(); };
+  $('#f-mic').onclick=dictar;
+  $('#f-ok').onclick=()=>{
+    const notas=$('#f-no').value.trim();
+    if(!notas){ $('#f-no').focus(); $('#f-no').style.borderColor='var(--n1)'; return; }
+    const d={asigId:$('#f-as').value, fecha:$('#f-fe').value, hora:$('#f-ho').value||'09:00',
+             notas, niv:+$('#f-ni').value, alarma:$('#f-al').value};
+    if(editando.id) Object.assign(entregas.find(x=>x.id===editando.id), d);
+    else entregas.push(Object.assign({id:++id, hecha:false, creada:editando.creada}, d));
+    velo.remove(); guardado();
+    /* si venimos de la pantalla del día, saltamos al día de la entrega;
+       si venimos de Próximas, nos quedamos en la lista */
+    if(diaAbierto) diaAbierto=d.fecha;
+    refresca();
+  };
+  setTimeout(()=>{ if(nuevo) $('#f-no').focus(); },80);
+}
+
+/* ====== asignaturas: el usuario las crea, renombra y colorea ====== */
+function abreAsig(){
+  const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
+  velo.onclick=ev=>{ if(ev.target===velo) cierra(); };
+  const f=document.createElement('div'); f.className='ficha';
+  f.innerHTML='<div class="ficha-top"><h3>Asignaturas</h3>'+
+    '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
+    '<div class="ficha-cuerpo" id="acuerpo"></div>'+
+    '<div class="acciones"><button class="btn ok" id="a-ok">Hecho</button></div>';
+  velo.appendChild(f); document.body.appendChild(velo);
+
+  function cierra(){ velo.remove(); guardado(); refresca(); }
+  $('#cerrar').onclick=cierra; $('#a-ok').onclick=cierra;
+
+  function dibuja(){
+    const c=$('#acuerpo'); c.innerHTML='';
+    ASIG.forEach(a=>{
+      const fila=document.createElement('div'); fila.className='alin';
+
+      const sw=document.createElement('label'); sw.className='swat';
+      sw.style.background=a.c; sw.title='Color de '+a.n;
+      const col=document.createElement('input'); col.type='color'; col.value=a.c;
+      col.setAttribute('aria-label','Color de '+a.n);
+      col.oninput=()=>{ a.c=col.value; sw.style.background=col.value; alDisco(); };
+      sw.appendChild(col); fila.appendChild(sw);
+
+      const nom=document.createElement('input'); nom.className='anom'; nom.value=a.n;
+      nom.setAttribute('aria-label','Nombre de la asignatura');
+      nom.oninput=()=>{ a.n=nom.value.trim()||'Sin nombre'; alDisco(); };
+      fila.appendChild(nom);
+
+      const q=document.createElement('button'); q.className='aquit'; q.textContent='🗑';
+      q.setAttribute('aria-label','Quitar '+a.n);
+      q.onclick=()=>{
+        const usan=entregas.filter(e=>e.asigId===a.id).length;
+        if(usan){ avisa(a.n+' no se puede quitar: '+usan+
+          (usan===1?' entrega la usa':' entregas la usan')+'. Cámbialas primero.'); return; }
+        if(ASIG.length<2){ avisa('Tiene que quedar al menos una asignatura.'); return; }
+        ASIG=ASIG.filter(x=>x.id!==a.id);
+        if(filtro===a.id) filtro=null;
+        alDisco(); dibuja();
+      };
+      fila.appendChild(q);
+      c.appendChild(fila);
+    });
+
+    const add=document.createElement('button'); add.className='nuevaasig';
+    add.textContent='＋ Añadir asignatura';
+    add.onclick=()=>{
+      const usados=ASIG.map(x=>x.c);
+      const libre=SUGER.find(c=>!usados.includes(c))||SUGER[ASIG.length%SUGER.length];
+      ASIG.push({id:'a'+Date.now().toString(36), n:'Nueva asignatura', c:libre});
+      alDisco(); dibuja();
+      const campos=$('#acuerpo').querySelectorAll('.anom');
+      const ult=campos[campos.length-1]; ult.focus(); ult.select();
+    };
+    c.appendChild(add);
+
+    const p=document.createElement('p'); p.className='aviso';
+    p.innerHTML='El <b>color</b> es lo que identifica cada asignatura en el '+
+      'calendario. Toca el cuadrado para cambiarlo.';
+    c.appendChild(p);
+    const rb=document.createElement('button'); rb.className='reinic';
+    rb.textContent='↺ Volver a los datos de ejemplo';
+    rb.onclick=reinicia; c.appendChild(rb);
+  }
+  dibuja();
+}
+
+function avisa(txt){
+  const d=document.createElement('div'); d.className='toast'; d.textContent=txt;
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),3200);
+}
+
+/* El micrófono real no está disponible en esta vista previa: el mock
+   muestra cómo se comportaría escribiendo una frase de ejemplo. */
+function dictar(){
+  const b=$('#f-mic'), n=$('#f-no');
+  if(b.classList.contains('on')) return;
+  b.classList.add('on');
+  const frase='Preguntar al profesor si se puede entregar a mano o solo por el aula virtual.';
+  const base=n.value?n.value.replace(/\s*$/,'')+' ':'';
+  let i=0;
+  const t=setInterval(()=>{ n.value=base+frase.slice(0,i+=2); n.scrollTop=n.scrollHeight;
+    if(i>=frase.length){ clearInterval(t); b.classList.remove('on'); } },28);
+}
+
+let gt=null;
+function guardado(){
+  alDisco();
+  const e=$('#nube-txt'); if(!e) return;
+  e.textContent='Guardando…'; clearTimeout(gt);
+  gt=setTimeout(()=>{e.textContent='Guardado en este dispositivo';},700);
+}
+
+function pinta(){
+  pintaFiltros();
+  if(vista==='mes') pintaMes();
+  else if(vista==='sem') pintaSemana();
+  else pintaLista();
+  $('#v-mes').setAttribute('aria-pressed',vista==='mes');
+  $('#v-sem').setAttribute('aria-pressed',vista==='sem');
+  $('#v-lis').setAttribute('aria-pressed',vista==='lis');
+  /* las flechas sólo tienen sentido en un calendario */
+  const nav = vista==='lis';
+  $('#ant').hidden=nav; $('#sig').hidden=nav;
+  /* crear una entrega se puede desde la pantalla principal */
+  $('#fab-lista').hidden = !nav;
+}
+$('#v-mes').onclick=()=>{vista='mes';pinta();};
+$('#v-sem').onclick=()=>{vista='sem';pinta();};
+$('#v-lis').onclick=()=>{vista='lis';pinta();};
+$('#fab-lista').onclick=()=>abreFicha(null);
+$('#b-asig').onclick=abreAsig;
+$('#ant').onclick=()=>{vista==='mes'?cursor.setMonth(cursor.getMonth()-1):cursor.setDate(cursor.getDate()-7);pinta();};
+$('#sig').onclick=()=>{vista==='mes'?cursor.setMonth(cursor.getMonth()+1):cursor.setDate(cursor.getDate()+7);pinta();};
+document.addEventListener('keydown',ev=>{
+  if(ev.key!=='Escape') return;
+  if($('#velo')) $('#velo').remove(); else if(diaAbierto) cierraDia();
+});
+pinta();
+</script>
+
+</body>
+</html>

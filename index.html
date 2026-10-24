@@ -2,14 +2,17 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ZkwoXGuPCWcN6+9i/PxXCaYleiaFiQqorMGm7342cVM=' https://accounts.google.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://www.googleapis.com https://accounts.google.com; frame-src https://accounts.google.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#5b4bd6">
 <style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
 <title>Entregas de Clase</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Karla:wght@400;500;700&display=swap">
+</head>
+<body>
 <style>
 /* Layout: una columna. Calendario arriba; el día se abre encima a pantalla
    completa; la ficha sube desde abajo.
@@ -65,7 +68,12 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   padding-right:max(16px,env(safe-area-inset-right,0px))}
 .barra-fila{display:flex;align-items:center;gap:10px}
 .marca{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.01em}
-.nube{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--tinta-3)}
+.nube{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--tinta-3);
+  background:none;border:0;padding:0;font-family:inherit}
+/* cuando hace falta volver a conectar, el propio indicador es el botón */
+.nube.pulsa{cursor:pointer;color:var(--tinta);border:1px solid var(--linea);
+  border-radius:999px;padding:4px 10px}
+.nube.pulsa:active{background:var(--linea-2)}
 .punto{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:0 0 auto}
 .eng{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
   font-size:16px;color:var(--tinta-2);border:1px solid var(--linea);flex:0 0 auto}
@@ -307,13 +315,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   font-size:13px;max-width:min(420px,88vw);box-shadow:0 8px 24px rgba(0,0,0,.28)}
 </style>
 
-</head>
-<body>
 <div class="app">
   <header class="barra">
     <div class="barra-fila">
       <span class="marca">Entregas de Clase</span>
-      <span class="nube"><i class="punto"></i><span id="nube-txt">Guardado en este dispositivo</span></span>
+      <button class="nube" id="nube" type="button" disabled><i class="punto"></i><span id="nube-txt">Guardado en este dispositivo</span></button>
       <button class="eng" id="b-asig" aria-label="Asignaturas" title="Asignaturas">⚙</button>
     </div>
     <div class="nav">
@@ -333,6 +339,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <button class="fab" id="fab-lista" hidden>＋ Nueva entrega</button>
 
 <script>
+/* ====== no dejarse enmarcar ======
+   GitHub Pages no permite enviar cabeceras HTTP, y frame-ancestors se
+   ignora cuando la política va en una etiqueta <meta>. Así que el
+   anti-enmarcado se hace aquí: si la página se abre dentro del marco de
+   otro sitio, no se ejecuta nada. Evita el engaño del clic, donde un
+   sitio ajeno enseña la aplicación de fondo y capta las pulsaciones. */
+if(window.top !== window.self){
+  document.body.textContent='Esta página no puede abrirse dentro de otro sitio.';
+  throw new Error('página enmarcada');
+}
+
 /* ====== asignaturas: el COLOR identifica la asignatura ======
    Cada una tiene un id propio. Las entregas guardan ese id, no el
    nombre, para que renombrarla no rompa nada. */
@@ -364,7 +381,7 @@ const ALARMAS = ['Sin alarma','A la hora','1 hora antes','3 horas antes',
 const HOY = new Date(); HOY.setHours(0,0,0,0);
 const k = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const desp = n => { const d=new Date(HOY); d.setDate(d.getDate()+n); return k(d); };
-const kFecha = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+const kFecha = s => { const [y,m,d]=String(s==null?'':s).split('-').map(Number); return new Date(y,m-1,d); };
 
 let id=0;
 /* estado: 'pend' pendiente · 'fin' terminada · 'canc' cancelada (papelera) */
@@ -401,26 +418,78 @@ const CLIENT_ID='797709712717-egm5dldvhrkjolcquc1tm2ji6q0k9s5h.apps.googleuserco
 const AMBITO='https://www.googleapis.com/auth/drive.file';
 const ARCHIVO='entregas.json';
 const LLAVE='entregas.cache.v1';
+const LLAVE_S='entregas.sesion.v1';
 
 /* Al arrancar no hay nada hasta que entre: los ejemplos sólo se cargan
    si él los pide, para que su archivo de Drive nazca limpio. */
 entregas=[];
 
+/* ---- frontera de confianza ----
+   Todo lo que llega del archivo de Drive o de la copia del dispositivo es
+   dato NO confiable: pudo escribirlo otro programa, o alguien que tocara
+   el archivo. Se obliga a cada campo a tener la forma que debe tener,
+   antes de que llegue a ninguna parte de la aplicación. */
+const vFecha  = s => /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : k(HOY);
+const vHora   = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(s) ? s : '23:59';
+const vColor  = s => /^#[0-9a-fA-F]{6}$/.test(s) ? s : '#6d6a85';
+const vNum    = (n,min,max,pordef) =>
+  Number.isFinite(+n) && +n>=min && +n<=max ? +n : pordef;
+const vTexto  = (s,max) => (typeof s==='string' ? s : '').slice(0, max);
+
+function normalizaAsig(lista){
+  const out = (Array.isArray(lista)?lista:[])
+    .filter(a=>a && typeof a==='object')
+    .map((a,i)=>({ id: vTexto(a.id,40) || 'a'+(i+1),
+                   n : vTexto(a.n,60)  || 'Sin nombre',
+                   c : vColor(a.c) }));
+  return out.length ? out : null;
+}
+
+/* Pone al día entregas escritas por versiones anteriores y sanea los
+   campos. Una sola función: la usan tanto la copia del dispositivo como
+   la de Drive, que pueden llegar con formatos distintos. */
+/* estados válidos de una entrega ('todo' de ESTADOS es un filtro, no un estado) */
+const ESTADO_OK = ['pend','fin','canc'];
+
+function normaliza(lista){
+  lista = (Array.isArray(lista)?lista:[]).filter(e=>e && typeof e==='object');
+  let tope = 0;
+  lista.forEach(e=>{
+    /* antes se guardaba el NOMBRE de la asignatura en vez de su id */
+    if(!e.asigId){
+      const a=porNombre(e.asig); e.asigId = a ? a.id : ASIG[ASIG.length-1].id;
+      delete e.asig;
+    }
+    /* antes se guardaba hecha:true/false en vez de un estado */
+    if(!e.estado){ e.estado = e.hecha?'fin':'pend'; delete e.hecha; }
+    if(e.aplazada===undefined){ e.aplazada=0; e.fechaPrev=null; }
+
+    /* saneado: cada campo con la forma que le toca */
+    e.id      = vNum(e.id, 1, 1e9, 0);
+    if(e.id > tope) tope = e.id;
+    e.asigId  = vTexto(e.asigId,40) || ASIG[ASIG.length-1].id;
+    e.niv     = vNum(e.niv, 1, 4, 3);
+    e.fecha   = vFecha(e.fecha);
+    e.hora    = vHora(e.hora);
+    e.notas   = vTexto(e.notas, 4000);
+    e.alarma  = ALARMAS.indexOf(e.alarma)>=0 ? e.alarma : 'Sin alarma';
+    e.estado  = ESTADO_OK.indexOf(e.estado)>=0 ? e.estado : 'pend';
+    e.aplazada= vNum(e.aplazada, 0, 999, 0);
+    e.fechaPrev = e.fechaPrev ? vFecha(e.fechaPrev) : null;
+  });
+  /* dos entregas no pueden compartir id: al borrar se iría la equivocada */
+  const vistos = new Set();
+  lista.forEach(e=>{ if(!e.id || vistos.has(e.id)) e.id = ++tope; vistos.add(e.id); });
+  return lista;
+}
+
 try{ const g=localStorage.getItem(LLAVE);
   if(g){ const d=JSON.parse(g);
-    if(Array.isArray(d.asig)&&d.asig.length) ASIG=d.asig;
+    const a=normalizaAsig(d.asig); if(a) ASIG=a;
     if(Array.isArray(d.entregas)){
-      entregas=d.entregas; id=d.id||entregas.length;
-      /* datos de versiones anteriores guardaban el NOMBRE: se traducen */
-      entregas.forEach(e=>{
-        if(!e.asigId){
-          const a=porNombre(e.asig); e.asigId = a ? a.id : ASIG[ASIG.length-1].id;
-          delete e.asig;
-        }
-        /* versiones anteriores guardaban hecha:true/false */
-        if(!e.estado){ e.estado = e.hecha?'fin':'pend'; delete e.hecha; }
-        if(e.aplazada===undefined){ e.aplazada=0; e.fechaPrev=null; }
-      });
+      id = vNum(d.id, 0, 1e9, 0);
+      entregas=normaliza(d.entregas);
+      id = Math.max(id, ...entregas.map(e=>e.id), 0);
     } }
 }catch(e){}
 function alDisco(){
@@ -439,21 +508,62 @@ function reinicia(){
    dispositivo no pise lo que acaba de guardar el otro.
    ================================================================== */
 const N = { token:null, caduca:0, fileId:null, version:null, cliente:null,
-            correo:null, dentro:false, pendiente:false, subiendo:false };
+            correo:null, dentro:false, pendiente:false, subiendo:false,
+            /* el permiso caducó y hay que pedirlo otra vez con un clic */
+            pideEntrar:false };
 try{ const g=JSON.parse(localStorage.getItem(LLAVE)||'{}'); if(g.fileId) N.fileId=g.fileId; }catch(e){}
 
 const API='https://www.googleapis.com/drive/v3/files';
 const SUBE='https://www.googleapis.com/upload/drive/v3/files';
 
-function nEstado(txt, clase){
-  const e=$('#nube-txt'); if(!e) return;
+/* El indicador de la barra hace dos papeles: informa, y cuando hace falta
+   volver a conectar se convierte en el botón que lo hace. Un permiso de
+   Google sólo se puede pedir desde un clic: el navegador bloquea la
+   ventana de Google si nace sola al cargar la página. */
+function nEstado(txt, clase, accion){
+  const e=$('#nube-txt'), b=$('#nube'); if(!e||!b) return;
   e.textContent=txt;
-  const p=document.querySelector('.punto');
+  const p=b.querySelector('.punto');
   if(p) p.style.background = clase==='mal' ? 'var(--n1)'
                            : clase==='espera' ? 'var(--n2)' : 'var(--ok)';
+  b.disabled = !accion;
+  b.classList.toggle('pulsa', !!accion);
+  b.onclick = accion || null;
+}
+/* Pide volver a conectar, sin tapar la aplicación: los datos ya se ven. */
+function pideConectar(){
+  N.pideEntrar=true;
+  nEstado('Conectar con Drive','mal', ()=>{ nEstado('Entrando…','espera'); entra(); });
+}
+/* Qué dice el indicador cuando no hay ninguna operación en marcha. */
+function estadoReposo(){
+  if(N.dentro) nEstado('Guardado en Drive');
+  else if(N.pideEntrar) pideConectar();
+  else nEstado('Guardado en este dispositivo','espera');
 }
 
-/* --- sesión --- */
+/* --- sesión ---
+   El permiso de Google dura una hora. Se guarda para que un refresco de
+   la página no obligue a entrar otra vez. Alcance: sólo el archivo que
+   crea esta aplicación. No hay forma de alargarlo más sin un servidor.
+
+   Va en sessionStorage, no en localStorage: así muere al cerrar la
+   pestaña. Si alguien coge el dispositivo más tarde no encuentra ningún
+   permiso guardado. Cuesta un clic cada vez que se abre de nuevo. */
+function guardaSesion(){
+  try{ sessionStorage.setItem(LLAVE_S, JSON.stringify({t:N.token, c:N.caduca})); }catch(e){}
+}
+function olvidaSesion(){
+  N.token=null; N.caduca=0; N.dentro=false;
+  try{ sessionStorage.removeItem(LLAVE_S); }catch(e){}
+}
+const tokenVale = ()=> N.token && Date.now() < N.caduca-60000;
+function leeSesion(){
+  try{ const d=JSON.parse(sessionStorage.getItem(LLAVE_S)||'null');
+       if(d && d.t){ N.token=d.t; N.caduca=d.c||0; if(tokenVale()) return true; } }catch(e){}
+  olvidaSesion(); return false;
+}
+
 function nCliente(){
   if(N.cliente) return N.cliente;
   if(!window.google || !google.accounts || !google.accounts.oauth2) return null;
@@ -463,28 +573,31 @@ function nCliente(){
       if(r && r.access_token){
         N.token=r.access_token;
         N.caduca=Date.now()+((r.expires_in||3600)*1000);
-        N.dentro=true;
+        N.dentro=true; N.pideEntrar=false;
+        guardaSesion();
+        const p=$('#portada'); if(p) p.remove();
         arranca();
-      } else nEstado('No se pudo entrar','mal');
+      } else pideConectar();
     },
-    error_callback: ()=>{ nEstado('Entrada cancelada','mal'); muestraEntrada(); }
+    error_callback: ()=>{ pideConectar(); }
   });
   return N.cliente;
 }
-const tokenVale = ()=> N.token && Date.now() < N.caduca-60000;
 
-function entra(silencioso, intentos){
+/* prompt:'' = no vuelvas a preguntar si ya dio permiso. Si nunca lo dio,
+   Google enseña igualmente la cuenta y el permiso: no se puede saltar. */
+function entra(intentos){
   intentos=intentos||0;
   const c=nCliente();
   if(!c){
     if(intentos>10){ nEstado('Sin conexión con Google','mal'); muestraEntrada(true); return; }
-    setTimeout(()=>entra(silencioso, intentos+1), 400); return;
+    setTimeout(()=>entra(intentos+1), 400); return;
   }
-  c.requestAccessToken({prompt: silencioso ? '' : 'consent'});
+  c.requestAccessToken({prompt:''});
 }
 function sal(){
-  if(N.token && google.accounts.oauth2) google.accounts.oauth2.revoke(N.token, ()=>{});
-  N.token=null; N.dentro=false; N.fileId=null; N.version=null;
+  if(N.token && window.google && google.accounts.oauth2) google.accounts.oauth2.revoke(N.token, ()=>{});
+  olvidaSesion(); N.fileId=null; N.version=null;
   try{ localStorage.removeItem(LLAVE); }catch(e){}
   location.reload();
 }
@@ -494,7 +607,8 @@ async function pide(url, opciones){
   opciones=opciones||{};
   opciones.headers=Object.assign({Authorization:'Bearer '+N.token}, opciones.headers||{});
   const r=await fetch(url, opciones);
-  if(r.status===401){ N.token=null; throw new Error('sesion'); }
+  /* 401 = el permiso ya no vale (caducó o lo retiraron en la cuenta) */
+  if(r.status===401){ olvidaSesion(); throw new Error('sesion'); }
   if(!r.ok) throw new Error('http '+r.status);
   return r;
 }
@@ -531,11 +645,10 @@ const paquete = ()=>({formato:1, asig:ASIG, entregas, id});
 async function baja(){
   const r=await pide(API+'/'+N.fileId+'?alt=media');
   const d=await r.json();
-  if(Array.isArray(d.asig)&&d.asig.length) ASIG=d.asig;
-  if(Array.isArray(d.entregas)) entregas=d.entregas;
-  id=d.id||entregas.length;
-  entregas.forEach(e=>{ if(!e.estado) e.estado='pend';
-    if(e.aplazada===undefined){e.aplazada=0;e.fechaPrev=null;} });
+  /* el archivo de Drive es dato no confiable igual que la copia local */
+  const a=normalizaAsig(d.asig); if(a) ASIG=a;
+  if(Array.isArray(d.entregas)) entregas=normaliza(d.entregas);
+  id = Math.max(vNum(d.id,0,1e9,0), ...entregas.map(e=>e.id), 0);
   alDisco();
 }
 
@@ -546,7 +659,10 @@ function subeLuego(){ clearTimeout(tSube); tSube=setTimeout(subeYa, 900); }
 async function subeYa(){
   if(!N.dentro || !N.fileId){ return; }
   if(N.subiendo){ N.pendiente=true; return; }
-  if(!tokenVale()){ entra(true); N.pendiente=true; return; }
+  /* Sin permiso válido no se puede subir; queda en la copia local y se
+     pide conectar. Abrir la ventana de Google aquí no serviría: no hay
+     clic detrás y el navegador la bloquearía. */
+  if(!tokenVale()){ olvidaSesion(); pideConectar(); return; }
   N.subiendo=true; nEstado('Guardando…','espera');
   try{
     const r=await pide(API+'/'+N.fileId+'?fields=version');
@@ -598,10 +714,10 @@ async function arranca(){
     const p=$('#portada'); if(p) p.remove();
     refresca();
   }catch(e){
-    if(e.message==='sesion'){ entra(false); return; }
-    nEstado('Sin conexión a Drive','mal');
     const p=$('#portada'); if(p) p.remove();
     refresca();
+    if(e.message==='sesion') pideConectar();
+    else nEstado('Sin conexión a Drive','mal');
   }
 }
 
@@ -653,16 +769,23 @@ function circulo(n,mini){
 }
 
 /* fecha corta para los avisos: "26 oct" */
-function fCorta(f){ const d=kFecha(f); return d.getDate()+' '+MESES[d.getMonth()].slice(0,3); }
+/* Una fecha ilegible no puede tumbar la pantalla: se devuelve el texto tal cual. */
+function fCorta(f){ const d=kFecha(f);
+  if(isNaN(d)) return String(f);
+  return d.getDate()+' '+MESES[d.getMonth()].slice(0,3); }
 
 /* ====== acciones sobre una entrega ====== */
 function abreAcciones(e){
   const velo=document.createElement('div'); velo.className='velo'; velo.id='velo';
   velo.onclick=ev=>{ if(ev.target===velo) velo.remove(); };
   const f=document.createElement('div'); f.className='ficha';
-  f.innerHTML='<div class="ficha-top"><h3>'+(primeraLinea(e.notas).slice(0,40))+'</h3>'+
+  /* El título sale de las notas, que las escribe el usuario: se pone con
+     textContent, nunca con innerHTML, o un texto con etiquetas HTML se
+     ejecutaría como código. */
+  f.innerHTML='<div class="ficha-top"><h3></h3>'+
     '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
     '<div class="ficha-cuerpo" id="accu"></div>';
+  f.querySelector('h3').textContent = primeraLinea(e.notas).slice(0,40);
   velo.appendChild(f); document.body.appendChild(velo);
   $('#cerrar').onclick=()=>velo.remove();
   const c=$('#accu');
@@ -699,16 +822,19 @@ function abreAplazar(e){
   f.innerHTML='<div class="ficha-top"><h3>Aplazar entrega</h3>'+
     '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
     '<div class="ficha-cuerpo">'+
-      '<p class="creada">Ahora es el <b>'+fCorta(e.fecha)+'</b> a las '+e.hora+'</p>'+
+      '<p class="creada" id="ap-ahora"></p>'+
       '<div class="rapidas" id="rap"></div>'+
       '<div class="campo"><label for="ap-fe">Nueva fecha</label>'+
-        '<input type="date" id="ap-fe" value="'+e.fecha+'"></div>'+
+        '<input type="date" id="ap-fe"></div>'+
       '<div class="campo"><label for="ap-ho">Hora</label>'+
-        '<input type="time" id="ap-ho" value="'+e.hora+'"></div>'+
+        '<input type="time" id="ap-ho"></div>'+
     '</div>'+
     '<div class="acciones"><button class="btn sec" id="ap-can">Cancelar</button>'+
       '<button class="btn ok" id="ap-ok">Aplazar</button></div>';
   velo.appendChild(f); document.body.appendChild(velo);
+  /* fecha y hora vienen del archivo: se ponen como valor, no como HTML */
+  $('#ap-ahora').textContent='Ahora es el '+fCorta(e.fecha)+' a las '+e.hora;
+  $('#ap-fe').value=e.fecha; $('#ap-ho').value=e.hora;
   $('#cerrar').onclick=$('#ap-can').onclick=()=>velo.remove();
 
   const base=kFecha(e.fecha);
@@ -1056,14 +1182,18 @@ function abreFicha(e){
      '<button class="rnd" id="cerrar" aria-label="Cerrar">✕</button></div>'+
    '<div class="ficha-cuerpo">'+
      '<div class="fila3">'+
-       '<div class="campo"><label for="f-as">Asignatura</label><select id="f-as">'+
-         ASIG.map(a=>'<option value="'+a.id+'">'+a.n+'</option>').join('')+'</select></div>'+
+       /* las opciones se rellenan luego con la API del DOM: el nombre de
+          asignatura lo escribe el usuario y no puede ir por innerHTML */
+       '<div class="campo"><label for="f-as">Asignatura</label><select id="f-as"></select></div>'+
        '<div class="campo"><label for="f-fe">Fecha de entrega</label>'+
          '<input type="date" id="f-fe"></div>'+
        '<div class="campo"><label for="f-ho">Hora</label><input type="time" id="f-ho"></div>'+
      '</div>'+
      '<div class="campo"><label for="f-no">Notas</label>'+
-       '<div class="notas-caja"><textarea id="f-no" placeholder="Qué hay que entregar y cómo"></textarea>'+
+       /* el mismo tope que aplica vTexto al leer del archivo: si no, se
+          guardaría más de lo que se vuelve a cargar y se perdería texto */
+       '<div class="notas-caja"><textarea id="f-no" maxlength="4000" '+
+         'placeholder="Qué hay que entregar y cómo"></textarea>'+
        '<button class="mic" id="f-mic" aria-label="Dictar">🎙</button></div></div>'+
      '<div class="campo"><label for="f-ni">Nivel de importancia</label><select id="f-ni">'+
        NIV.map(n=>'<option value="'+n.n+'">'+n.nom+'</option>').join('')+'</select></div>'+
@@ -1076,6 +1206,11 @@ function abreFicha(e){
      '<button class="btn sec" id="f-can">Cancelar</button>'+
      '<button class="btn ok" id="f-ok">Guardar</button></div>';
   velo.appendChild(f); document.body.appendChild(velo);
+
+  /* nombre de asignatura: con textContent, nunca por HTML */
+  const sel=$('#f-as');
+  ASIG.forEach(a=>{ const o=document.createElement('option');
+    o.value=a.id; o.textContent=a.n; sel.appendChild(o); });
 
   $('#f-as').value=editando.asigId; $('#f-fe').value=editando.fecha;
   $('#f-ho').value=editando.hora; $('#f-no').value=editando.notas;
@@ -1204,14 +1339,15 @@ function dictar(){
 function guardado(){
   alDisco();
   if(N.dentro){ nEstado('Guardando…','espera'); subeLuego(); }
-  else nEstado('Guardado en este dispositivo','espera');
+  else estadoReposo();
 }
 
 /* ====== pantalla de entrada ======
    Con sinRed=true se ofrece seguir con la copia local, para que una red
    que bloquee Google no deje la aplicación inservible. */
 function muestraEntrada(sinRed){
-  if($('#portada')) return;
+  /* se vuelve a pintar en vez de salir: el mensaje cambia según haya red */
+  const vieja=$('#portada'); if(vieja) vieja.remove();
   const hayCopia = entregas.length>0;
   const d=document.createElement('div'); d.className='portada'; d.id='portada';
   d.innerHTML =
@@ -1236,10 +1372,11 @@ function muestraEntrada(sinRed){
   document.body.appendChild(d);
   $('#p-entrar').onclick=()=>{
     if(sinRed){ location.reload(); return; }
-    nEstado('Entrando…','espera'); entra(false);
+    nEstado('Entrando…','espera'); entra();
   };
   const bl=$('#p-local');
-  if(bl) bl.onclick=()=>{ d.remove(); nEstado('Sin conexión · copia local','mal'); refresca(); };
+  if(bl) bl.onclick=()=>{ d.remove(); N.pideEntrar=false;
+    nEstado('Sin conexión · copia local','mal'); refresca(); };
 }
 
 function pinta(){
@@ -1268,32 +1405,22 @@ document.addEventListener('keydown',ev=>{
   if($('#velo')) $('#velo').remove(); else if(diaAbierto) cierraDia();
 });
 pinta();
-nEstado('Guardado en este dispositivo','espera');
 
-/* Si ya dio permiso antes, se entra sin molestar. Si no, portada.
-   Si la librería de Google no llega —sin internet, o una red que la
-   bloquea— no se espera indefinidamente: se ofrece seguir sin conexión. */
-(function inicio(intentos){
-  intentos = intentos||0;
-  if(!window.google || !google.accounts || !google.accounts.oauth2){
-    if(intentos > 15){ muestraEntrada(true); return; }
-    return setTimeout(()=>inicio(intentos+1), 300);
-  }
-  let resuelto=false;
-  const c=google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID, scope: AMBITO,
-    callback: r=>{ resuelto=true;
-      if(r && r.access_token){
-        N.token=r.access_token; N.caduca=Date.now()+((r.expires_in||3600)*1000);
-        N.dentro=true; N.cliente=c; arranca();
-      } else muestraEntrada();
-    },
-    error_callback: ()=>{ resuelto=true; muestraEntrada(); }
-  });
-  N.cliente=c;
-  c.requestAccessToken({prompt:''});
-  setTimeout(()=>{ if(!resuelto && !N.dentro) muestraEntrada(); }, 2500);
-})();
+/* Arranque. Lo que se ve nunca depende de Google: primero la copia de
+   este dispositivo, y la conexión encima.
+     · permiso guardado y vivo  → se reanuda sin pedir nada
+     · caducado, pero hay datos → se usan, y se ofrece conectar
+     · ni permiso ni datos      → portada, que es la primera vez */
+if(leeSesion()){
+  N.dentro=true;
+  nEstado('Conectando…','espera');
+  arranca();
+} else if(entregas.length){
+  pideConectar();
+} else {
+  nEstado('Guardado en este dispositivo','espera');
+  muestraEntrada();
+}
 </script>
 
 </body>
